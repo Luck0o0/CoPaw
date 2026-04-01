@@ -56,13 +56,20 @@ def _crontab_dow_to_name(field: str) -> str:
 
 
 class ScheduleSpec(BaseModel):
-    type: Literal["cron"] = "cron"
-    cron: str = Field(...)
+    type: Literal["cron", "at", "interval"] = "cron"
+    # cron fields
+    cron: Optional[str] = None
     timezone: str = "UTC"
+    # at fields
+    run_at: Optional[datetime] = None
+    # interval fields
+    interval_seconds: Optional[int] = None
 
     @field_validator("cron")
     @classmethod
-    def normalize_cron_5_fields(cls, v: str) -> str:
+    def normalize_cron_5_fields(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
         parts = [p for p in v.split() if p]
         if len(parts) == 5:
             parts[4] = _crontab_dow_to_name(parts[4])
@@ -83,6 +90,19 @@ class ScheduleSpec(BaseModel):
             "cron must have 5 fields "
             "(or 4/3 fields that can be normalized); seconds not supported.",
         )
+
+    @model_validator(mode="after")
+    def _validate_schedule_fields(self) -> "ScheduleSpec":
+        if self.type == "cron":
+            if not self.cron:
+                raise ValueError("cron type requires cron field")
+        elif self.type == "at":
+            if self.run_at is None:
+                raise ValueError("at type requires run_at field")
+        elif self.type == "interval":
+            if not self.interval_seconds or self.interval_seconds <= 0:
+                raise ValueError("interval type requires interval_seconds > 0")
+        return self
 
 
 class DispatchTarget(BaseModel):
