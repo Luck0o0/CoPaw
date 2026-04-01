@@ -7,6 +7,7 @@ import {
   Switch,
   Button,
   Checkbox,
+  Collapse,
 } from "@agentscope-ai/design";
 import { TimePicker } from "antd";
 import { useTranslation } from "react-i18next";
@@ -354,7 +355,14 @@ export function JobDrawer({
           ]}
           tooltip={t("cronJobs.dispatchChannelTooltip")}
         >
-          <Input placeholder="console" />
+          <Select placeholder="选择频道">
+            <Select.Option value="console">Console</Select.Option>
+            <Select.Option value="wecom">企业微信</Select.Option>
+            <Select.Option value="dingtalk">钉钉</Select.Option>
+            <Select.Option value="discord">Discord</Select.Option>
+            <Select.Option value="feishu">飞书</Select.Option>
+            <Select.Option value="imessage">iMessage</Select.Option>
+          </Select>
         </Form.Item>
 
         <Form.Item
@@ -388,29 +396,33 @@ export function JobDrawer({
           </Select>
         </Form.Item>
 
-        <Form.Item
-          name={["runtime", "max_concurrency"]}
-          label={t("cronJobs.runtimeMaxConcurrency")}
-          tooltip={t("cronJobs.maxConcurrencyTooltip")}
-        >
-          <InputNumber min={1} style={{ width: "100%" }} placeholder="1" />
-        </Form.Item>
+        <Collapse ghost>
+          <Collapse.Panel key="advanced" header="高级选项 (Runtime)">
+            <Form.Item
+              name={["runtime", "max_concurrency"]}
+              label={t("cronJobs.runtimeMaxConcurrency")}
+              tooltip={t("cronJobs.maxConcurrencyTooltip")}
+            >
+              <InputNumber min={1} style={{ width: "100%" }} placeholder="1" />
+            </Form.Item>
 
-        <Form.Item
-          name={["runtime", "timeout_seconds"]}
-          label={t("cronJobs.runtimeTimeoutSeconds")}
-          tooltip={t("cronJobs.timeoutSecondsTooltip")}
-        >
-          <InputNumber min={1} style={{ width: "100%" }} placeholder="300" />
-        </Form.Item>
+            <Form.Item
+              name={["runtime", "timeout_seconds"]}
+              label={t("cronJobs.runtimeTimeoutSeconds")}
+              tooltip={t("cronJobs.timeoutSecondsTooltip")}
+            >
+              <InputNumber min={1} style={{ width: "100%" }} placeholder="300" />
+            </Form.Item>
 
-        <Form.Item
-          name={["runtime", "misfire_grace_seconds"]}
-          label={t("cronJobs.runtimeMisfireGraceSeconds")}
-          tooltip={t("cronJobs.misfireGraceSecondsTooltip")}
-        >
-          <InputNumber min={0} style={{ width: "100%" }} placeholder="60" />
-        </Form.Item>
+            <Form.Item
+              name={["runtime", "misfire_grace_seconds"]}
+              label={t("cronJobs.runtimeMisfireGraceSeconds")}
+              tooltip={t("cronJobs.misfireGraceSecondsTooltip")}
+            >
+              <InputNumber min={0} style={{ width: "100%" }} placeholder="60" />
+            </Form.Item>
+          </Collapse.Panel>
+        </Collapse>
       </Form>
     </Drawer>
   );
