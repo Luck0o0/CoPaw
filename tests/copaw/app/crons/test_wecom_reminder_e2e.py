@@ -11,7 +11,7 @@ from datetime import datetime, timezone, timedelta
 
 def test_schedule_spec_at_type_with_absolute_time():
     """Test ScheduleSpec with absolute time (e.g., tomorrow 8am as run_at)."""
-    from src.copaw.app.crons.models import ScheduleSpec
+    from copaw.app.crons.models import ScheduleSpec
 
     # Simulate LLM parsing "明天8点" -> run_at = tomorrow 8am UTC
     # 2026-04-02 08:00:00 UTC
@@ -25,7 +25,7 @@ def test_schedule_spec_at_type_with_absolute_time():
 
 def test_schedule_spec_interval_type():
     """Test ScheduleSpec with interval type (e.g., '1小时后')."""
-    from src.copaw.app.crons.models import ScheduleSpec
+    from copaw.app.crons.models import ScheduleSpec
 
     spec = ScheduleSpec(type="interval", interval_seconds=3600)
     assert spec.type == "interval"
@@ -34,7 +34,7 @@ def test_schedule_spec_interval_type():
 
 def test_reminder_job_model_construction():
     """Test constructing a reminder CronJobSpec with at schedule."""
-    from src.copaw.app.crons.models import CronJobSpec, ScheduleSpec, DispatchSpec, DispatchTarget
+    from copaw.app.crons.models import CronJobSpec, ScheduleSpec, DispatchSpec, DispatchTarget
 
     run_at = datetime(2026, 4, 2, 8, 0, 0, tzinfo=timezone.utc)
     schedule = ScheduleSpec(type="at", run_at=run_at)
@@ -61,7 +61,7 @@ def test_reminder_job_model_construction():
 
 def test_interval_job_model_construction():
     """Test constructing an interval-based recurring job."""
-    from src.copaw.app.crons.models import CronJobSpec, ScheduleSpec, DispatchSpec, DispatchTarget
+    from copaw.app.crons.models import CronJobSpec, ScheduleSpec, DispatchSpec, DispatchTarget
 
     schedule = ScheduleSpec(type="interval", interval_seconds=3600)
     dispatch = DispatchSpec(
@@ -84,7 +84,7 @@ def test_interval_job_model_construction():
 
 def test_cron_job_model_construction():
     """Test constructing a cron-based recurring job."""
-    from src.copaw.app.crons.models import CronJobSpec, ScheduleSpec, DispatchSpec, DispatchTarget
+    from copaw.app.crons.models import CronJobSpec, ScheduleSpec, DispatchSpec, DispatchTarget
 
     schedule = ScheduleSpec(type="cron", cron="0 9 * * *", timezone="UTC")
     dispatch = DispatchSpec(
@@ -107,7 +107,7 @@ def test_cron_job_model_construction():
 
 def test_schedule_spec_with_relative_interval():
     """Test ScheduleSpec for relative time (e.g., '3分钟后' -> run_at)."""
-    from src.copaw.app.crons.models import ScheduleSpec
+    from copaw.app.crons.models import ScheduleSpec
 
     now = datetime.now(timezone.utc)
     # LLM would parse "3分钟后" -> run_at = now + 3 minutes
