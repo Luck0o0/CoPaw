@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional, Union
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from ...config import get_heartbeat_config
@@ -271,6 +272,16 @@ class CronManager:
         self._states[spec.id] = st
 
     def _build_trigger(self, spec: CronJobSpec) -> CronTrigger:
+        if spec.schedule.type == "at":
+            return DateTrigger(run_date=spec.schedule.run_at)
+
+        if spec.schedule.type == "interval":
+            return IntervalTrigger(
+                seconds=spec.schedule.interval_seconds,
+                timezone=spec.schedule.timezone,
+            )
+
+        # cron type (default)
         # enforce 5 fields (no seconds)
         parts = [p for p in spec.schedule.cron.split() if p]
         if len(parts) != 5:
