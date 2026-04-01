@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Union
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.base import BaseTrigger
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -271,34 +272,40 @@ class CronManager:
         st.next_run_at = aps_job.next_run_time if aps_job else None
         self._states[spec.id] = st
 
-    def _build_trigger(self, spec: CronJobSpec) -> CronTrigger:
-        if spec.schedule.type == "at":
+    def _build_trigger(self, spec: CronJobSpec) -> BaseTrigger:
+        schedule_type = spec.schedule.type
+        if schedule_type == "at":
             return DateTrigger(run_date=spec.schedule.run_at)
 
-        if spec.schedule.type == "interval":
+        if schedule_type == "interval":
+            interval_seconds = spec.schedule.interval_seconds
+            if interval_seconds is None or interval_seconds <= 0:
+                raise ValueError("interval_seconds must be a positive integer")
             return IntervalTrigger(
-                seconds=spec.schedule.interval_seconds,
+                seconds=interval_seconds,
                 timezone=spec.schedule.timezone,
             )
 
-        # cron type (default)
-        # enforce 5 fields (no seconds)
-        parts = [p for p in spec.schedule.cron.split() if p]
-        if len(parts) != 5:
-            raise ValueError(
-                f"cron must have 5 fields, got {len(parts)}:"
-                f" {spec.schedule.cron}",
+        if schedule_type == "cron":
+            # enforce 5 fields (no seconds)
+            parts = [p for p in spec.schedule.cron.split() if p]
+            if len(parts) != 5:
+                raise ValueError(
+                    f"cron must have 5 fields, got {len(parts)}:"
+                    f" {spec.schedule.cron}",
+                )
+
+            minute, hour, day, month, day_of_week = parts
+            return CronTrigger(
+                minute=minute,
+                hour=hour,
+                day=day,
+                month=month,
+                day_of_week=day_of_week,
+                timezone=spec.schedule.timezone,
             )
 
-        minute, hour, day, month, day_of_week = parts
-        return CronTrigger(
-            minute=minute,
-            hour=hour,
-            day=day,
-            month=month,
-            day_of_week=day_of_week,
-            timezone=spec.schedule.timezone,
-        )
+        raise ValueError(f"Unknown schedule type: {schedule_type}")
 
     def _build_heartbeat_trigger(
         self,
