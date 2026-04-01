@@ -7,12 +7,14 @@ import {
   Switch,
   Button,
   Checkbox,
-  Collapse,
 } from "@agentscope-ai/design";
-import { TimePicker } from "antd";
+import { TimePicker, Collapse } from "antd";
 import { useTranslation } from "react-i18next";
 import type { FormInstance } from "antd";
+import { useState, useCallback } from "react";
 import type { CronJobSpecOutput } from "../../../../api/types";
+import { sessionApi } from "../../../../api/modules/chat";
+import type { Session } from "../../../../api/types";
 import { TIMEZONE_OPTIONS, DEFAULT_FORM_VALUES } from "./constants";
 import styles from "../index.module.less";
 
@@ -36,6 +38,31 @@ export function JobDrawer({
   onSubmit,
 }: JobDrawerProps) {
   const { t } = useTranslation();
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+
+  const loadSessions = useCallback(async (channel: string) => {
+    if (!channel) {
+      setSessions([]);
+      return;
+    }
+    setLoadingSessions(true);
+    try {
+      const data = await sessionApi.listSessions({ channel });
+      setSessions(data || []);
+    } catch (error) {
+      console.error("Failed to load sessions:", error);
+      setSessions([]);
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, []);
+
+  // Parse user_id from session_id (format: "channel:user_id")
+  const parseUserIdFromSession = (sessionId: string): string => {
+    const parts = sessionId.split(":");
+    return parts.length > 1 ? parts[1] : parts[0];
+  };
 
   return (
     <Drawer
@@ -355,7 +382,15 @@ export function JobDrawer({
           ]}
           tooltip={t("cronJobs.dispatchChannelTooltip")}
         >
-          <Select placeholder="选择频道">
+          <Select
+            placeholder="选择频道"
+            onChange={(value) => {
+              loadSessions(value);
+              // Reset session fields when channel changes
+              form.setFieldValue(["dispatch", "target", "session_id"], undefined);
+              form.setFieldValue(["dispatch", "target", "user_id"], undefined);
+            }}
+          >
             <Select.Option value="console">Console</Select.Option>
             <Select.Option value="wecom">企业微信</Select.Option>
             <Select.Option value="dingtalk">钉钉</Select.Option>
@@ -366,23 +401,49 @@ export function JobDrawer({
         </Form.Item>
 
         <Form.Item
+          noStyle
+          shouldUpdate={(prev, cur) => prev.dispatch?.channel !== cur.dispatch?.channel}
+        >
+          {({ getFieldValue }) => {
+            const channel = getFieldValue(["dispatch", "channel"]);
+            if (!channel) return null;
+
+            return (
+              <Form.Item
+                name={["dispatch", "target", "session_id"]}
+                label={t("cronJobs.dispatchTargetSessionId")}
+                rules={[
+                  { required: true, message: t("cronJobs.pleaseInputSessionId") },
+                ]}
+                tooltip={t("cronJobs.dispatchTargetSessionIdTooltip")}
+              >
+                <Select
+                  placeholder="选择会话"
+                  loading={loadingSessions}
+                  onChange={(sessionId) => {
+                    // Auto-fill user_id from session_id
+                    const userId = parseUserIdFromSession(sessionId);
+                    form.setFieldValue(["dispatch", "target", "user_id"], userId);
+                  }}
+                >
+                  {sessions.map((session) => (
+                    <Select.Option key={session.session_id} value={session.session_id}>
+                      {session.session_id}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            );
+          }}
+        </Form.Item>
+
+        <Form.Item
           name={["dispatch", "target", "user_id"]}
           label={t("cronJobs.dispatchTargetUserId")}
           rules={[{ required: true, message: t("cronJobs.pleaseInputUserId") }]}
           tooltip={t("cronJobs.dispatchTargetUserIdTooltip")}
         >
-          <Input placeholder="admin" />
-        </Form.Item>
-
-        <Form.Item
-          name={["dispatch", "target", "session_id"]}
-          label={t("cronJobs.dispatchTargetSessionId")}
-          rules={[
-            { required: true, message: t("cronJobs.pleaseInputSessionId") },
-          ]}
-          tooltip={t("cronJobs.dispatchTargetSessionIdTooltip")}
-        >
-          <Input placeholder="default" />
+          <Input placeholder="admin" disabled />
         </Form.Item>
 
         <Form.Item
