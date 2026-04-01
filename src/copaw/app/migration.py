@@ -634,6 +634,8 @@ def ensure_default_agent_exists() -> None:
 
 def _do_ensure_default_agent() -> None:
     """Internal implementation of default agent initialization."""
+    from .routers.agents import _initialize_agent_workspace
+
     config = load_config()
 
     # Get or determine default workspace path
@@ -651,6 +653,14 @@ def _do_ensure_default_agent() -> None:
     default_workspace.mkdir(parents=True, exist_ok=True)
 
     _ensure_workspace_json_files(default_workspace, "default agent")
+
+    # Always initialize workspace with default md files to ensure
+    # they exist (even if agent already existed, files might be missing)
+    _initialize_agent_workspace(
+        default_workspace,
+        None,
+        skill_names=None,
+    )
 
     # Only update config if agent didn't exist
     if not agent_existed:
