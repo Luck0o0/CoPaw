@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import pytest
 from datetime import datetime, timezone
-from apscheduler.triggers.date import DateTrigger
-from apscheduler.triggers.interval import IntervalTrigger
 
 def test_schedule_spec_cron_type():
     """cron type should work as before."""
@@ -25,3 +23,24 @@ def test_schedule_spec_interval_type():
     spec = ScheduleSpec(type="interval", interval_seconds=3600)
     assert spec.type == "interval"
     assert spec.interval_seconds == 3600
+
+
+def test_schedule_spec_cron_missing_cron():
+    """cron type without cron field should raise ValueError."""
+    from copaw.app.crons.models import ScheduleSpec
+    with pytest.raises(ValueError, match="cron type requires cron field"):
+        ScheduleSpec(type="cron")
+
+
+def test_schedule_spec_at_missing_run_at():
+    """at type without run_at field should raise ValueError."""
+    from copaw.app.crons.models import ScheduleSpec
+    with pytest.raises(ValueError, match="at type requires run_at field"):
+        ScheduleSpec(type="at")
+
+
+def test_schedule_spec_interval_invalid():
+    """interval type with interval_seconds=0 should raise ValueError."""
+    from copaw.app.crons.models import ScheduleSpec
+    with pytest.raises(ValueError, match="interval type requires interval_seconds > 0"):
+        ScheduleSpec(type="interval", interval_seconds=0)
