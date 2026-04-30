@@ -72,7 +72,7 @@ from ....app.channels.base import BaseChannel
 from ....app.channels.utils import file_url_to_local_path
 from ....constant import WORKING_DIR
 
-logger = logging.getLogger("qwenpaw.channels.matrix")
+logger = logging.getLogger(__name__)
 
 
 CHANNEL_KEY = "matrix"
