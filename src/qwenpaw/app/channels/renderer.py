@@ -93,11 +93,20 @@ class MessageRenderer:
         s = self.style
 
         if s.filter_thinking and msg_type == MessageType.REASONING:
+            logger.debug(
+                "renderer: filtering REASONING message "
+                "(filter_thinking=%s, msg_type=%s)",
+                s.filter_thinking,
+                msg_type,
+            )
             return []
 
         logger.debug(
-            "renderer message_to_parts: msg_type=%s content_len=%s",
+            "renderer message_to_parts: msg_type=%s filter_tool_messages=%s "
+            "filter_thinking=%s content_len=%s",
             msg_type,
+            s.filter_tool_messages,
+            s.filter_thinking,
             len(content),
         )
 
