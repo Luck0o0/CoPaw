@@ -1048,6 +1048,15 @@ class BaseChannel(ABC):
         Hook: one message event completed. Default: send_message_content.
         Override for batch/debounce (e.g. DingTalk merge then send).
         """
+        msg_type = getattr(event, "type", None)
+        logger.debug(
+            "on_event_message_completed: channel=%s filter_tool=%s "
+            "filter_thinking=%s msg_type=%s",
+            self.channel,
+            self._filter_tool_messages,
+            self._filter_thinking,
+            msg_type,
+        )
         await self.send_message_content(to_handle, event, send_meta)
 
     async def on_event_response(
