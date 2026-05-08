@@ -3,8 +3,10 @@
 
 import asyncio
 import json
+import queue
 import re
 import time
+from collections.abc import AsyncGenerator
 from typing import Any, Callable, Dict, Optional
 from uuid import uuid4
 
@@ -433,53 +435,36 @@ async def chat_with_agent(
     to_agent: str,
     text: str,
     session_id: Optional[str] = None,
-    timeout: int = 300,
-) -> ToolResponse:
-    """Send a foreground message to another configured agent.
+    timeout: int = 600,
+) -> AsyncGenerator[ToolResponse, None]:
+    """Send a message to another configured agent and stream the response.
 
-    This tool waits for the target agent to finish and returns the final text
-    response in a single tool result. It is intended for direct inter-agent
-    consultation where the caller expects an immediate reply rather than a
-    background task handle.
+    This tool streams text from the target agent as it arrives so the
+    manager's SSE stream stays alive during long worker processing.
 
     Args:
-        to_agent (`str`):
-            The target agent ID to send the message to. This must be an agent
-            ID returned by ``list_agents``.
-        text (`str`):
-            The message text to send to the target agent.
-        session_id (`str`, optional):
-            Existing session ID to continue a previous conversation. If not
-            provided, a new session ID is generated automatically.
-        timeout (`int`, optional):
-            Foreground wait timeout in seconds. Callers should estimate how
-            long the target agent may need to finish to reduce avoidable
-            timeout failures.
-
-    Returns:
-        `ToolResponse`:
-            A text response containing the final agent reply. Successful
-            responses include a ``[SESSION: ...]`` header followed by the reply
-            text so the caller can reuse the same session in later turns.
+        to_agent: Target agent ID from ``list_agents``.
+        text: Message text to send.
+        session_id: Existing session ID to continue a conversation.
+        timeout: Max wait time in seconds.
     """
     normalized_to_agent = normalize_id(to_agent)
     normalized_session_id = normalize_id(session_id)
     if not normalized_to_agent:
-        return _tool_text_response("ERROR: 'to_agent' is required for chat")
+        yield _tool_text_response("ERROR: 'to_agent' is required for chat")
+        return
     if not text:
-        return _tool_text_response("ERROR: 'text' is required for chat")
+        yield _tool_text_response("ERROR: 'text' is required for chat")
+        return
 
     target_exists = await asyncio.to_thread(
-        agent_exists,
-        normalized_to_agent,
-        None,
+        agent_exists, normalized_to_agent, None,
     )
     if not target_exists:
-        return _tool_text_response(
-            f"Agent [{normalized_to_agent}] not exists",
-        )
+        yield _tool_text_response(
+            f"Agent [{normalized_to_agent}] not exists")
+        return
 
-    # Get root_session_id from current context for cross-session approval
     from ...app.agent_context import (
         get_current_session_id,
         get_current_root_session_id,
@@ -490,26 +475,57 @@ async def chat_with_agent(
     final_root_session = caller_root_session or caller_session_id
 
     final_session_id, request_payload, _ = build_agent_chat_request(
-        normalized_to_agent,
-        text,
+        normalized_to_agent, text,
         session_id=normalized_session_id,
         from_agent=None,
         root_session_id=final_root_session,
     )
 
-    response_data = await asyncio.to_thread(
-        collect_final_agent_chat_response,
-        None,
-        request_payload,
-        normalized_to_agent,
-        timeout,
-    )
-    if not response_data:
-        return _tool_text_response("(No response received)")
+    # Thread-safe queue for streaming worker output back
+    text_queue = queue.Queue()
+    response_holder = {"data": None}
 
-    return _tool_text_response(
-        format_agent_chat_text(response_data, session_id=final_session_id),
-    )
+    def collect_lines():
+        def on_line(line):
+            parsed = parse_agent_sse_line(line)
+            if parsed:
+                text_content = extract_agent_text_content(parsed)
+                if text_content:
+                    text_queue.put(text_content)
+                response_holder["data"] = parsed
+
+        stream_agent_chat(
+            None, request_payload, normalized_to_agent, timeout,
+            line_handler=on_line,
+        )
+        text_queue.put(None)  # sentinel
+
+    task = asyncio.create_task(asyncio.to_thread(collect_lines))
+    accumulated = []
+    loop = asyncio.get_running_loop()
+
+    try:
+        while not task.done() or not text_queue.empty():
+            try:
+                item = await loop.run_in_executor(None, text_queue.get, True, 1.5)
+            except queue.Empty:
+                continue
+            if item is None:  # sentinel → stream finished
+                break
+            accumulated.append(str(item))
+            yield ToolResponse(
+                content=[TextBlock(type="text", text=str(item))],
+                stream=True, is_last=False,
+            )
+    finally:
+        if not task.done():
+            task.cancel()
+
+    final_text = "\n".join(accumulated) if accumulated else "(No response received)"
+    session_header = ""
+    if final_session_id:
+        session_header = f"[SESSION: {final_session_id}]\n\n"
+    yield _tool_text_response(session_header + final_text)
 
 
 async def submit_to_agent(
