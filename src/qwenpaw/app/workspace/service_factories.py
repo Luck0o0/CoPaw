@@ -52,7 +52,8 @@ async def create_chat_service(ws: "Workspace", service):
         # Create new ChatManager
         chats_path = str(ws.workspace_dir / "chats.json")
         chat_repo = JsonChatRepository(chats_path)
-        cm = ChatManager(repo=chat_repo)
+        sessions_dir = str(ws.workspace_dir / "sessions")
+        cm = ChatManager(repo=chat_repo, sessions_dir=sessions_dir)
         ws._service_manager.services["chat_manager"] = cm
         logger.info(f"ChatManager created: {chats_path}")
 

@@ -84,6 +84,23 @@ class BaseChatRepository(ABC):
         logger.debug("get_chat_by_id: No match found")
         return None
 
+    async def get_chats_by_ids(
+        self,
+        chat_ids: list[str],
+    ) -> list[ChatSpec]:
+        """Get chat specs by their UUIDs.
+
+        Args:
+            chat_ids: List of chat UUIDs
+
+        Returns:
+            List of matching ChatSpecs (may be shorter than input)
+        """
+        if not chat_ids:
+            return []
+        cf = await self.load()
+        return [c for c in cf.chats if c.id in chat_ids]
+
     async def upsert_chat(self, spec: ChatSpec) -> None:
         """Insert or update a chat spec.
 
