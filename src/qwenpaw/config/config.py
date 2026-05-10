@@ -1935,6 +1935,18 @@ def load_agent_config(agent_id: str) -> AgentProfileConfig:
         except Exception:
             pass
 
+        # 合并全局 config.json 中的自定义 channel（如 bladex）到 agent 配置中。
+        # 这样新建 agent 和已有 agent 都能自动继承自定义 channel 的配置字段，
+        # 无需每个 agent 手动在 agent.json 中补 channels。
+        agent_channels = data.get("channels") if isinstance(data.get("channels"), dict) else {}
+        global_channels = getattr(config, "channels", None)
+        if global_channels:
+            global_extra = getattr(global_channels, "__pydantic_extra__", None) or {}
+            for key, val in global_extra.items():
+                if key not in agent_channels:
+                    agent_channels[key] = val
+            data["channels"] = agent_channels
+
         agent_config = AgentProfileConfig(**data)
 
         # Cache the config with its mtime
