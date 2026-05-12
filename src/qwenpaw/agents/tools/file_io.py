@@ -18,6 +18,7 @@ from ...config.context import (
     get_current_recent_max_bytes,
 )
 from ...constant import WORKING_DIR, TRUNCATION_NOTICE_MARKER
+from qwenpaw.agents.utils.file_handling import download_file_from_url
 
 
 def _resolve_file_path(file_path: str) -> str:
@@ -105,6 +106,20 @@ async def read_file(  # pylint: disable=too-many-return-statements
                     TextBlock(
                         type="text",
                         text=f"Error: end_line must be an integer, got {end_line!r}.",
+                    ),
+                ],
+            )
+
+    # === spec S1: HTTP URL support ===
+    if file_path.startswith(("http://", "https://")):
+        try:
+            file_path = await download_file_from_url(file_path)
+        except Exception as e:  # noqa: BLE001
+            return ToolResponse(
+                content=[
+                    TextBlock(
+                        type="text",
+                        text=f"Error: Failed to download {file_path}: {e}",
                     ),
                 ],
             )
