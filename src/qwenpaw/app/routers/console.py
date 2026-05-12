@@ -93,6 +93,12 @@ def _extract_session_and_payload(request_data: Union[AgentRequest, dict]):
             elif isinstance(content_part, dict) and "content" in content_part:
                 content_parts.extend(content_part["content"] or [])
 
+    # Extract metadata (spec S2 H3): BladeX transmits bot_code/chat_id/chat_type
+    if isinstance(request_data, AgentRequest):
+        metadata = getattr(request_data, "metadata", None) or {}
+    else:
+        metadata = request_data.get("metadata") or {}
+
     native_payload = {
         "channel_id": channel_id,
         "sender_id": sender_id,
@@ -101,6 +107,7 @@ def _extract_session_and_payload(request_data: Union[AgentRequest, dict]):
             "session_id": session_id,
             "user_id": sender_id,
         },
+        "metadata": metadata,
     }
     return native_payload
 
@@ -157,6 +164,11 @@ async def post_console_chat(
         native_payload = _extract_session_and_payload(request_data)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+    # Expose BladeX-transmitted metadata to downstream tools (spec S2 H3)
+    from qwenpaw.app.agent_context import set_current_channel_meta
+    set_current_channel_meta(native_payload.get("metadata", {}))
+
     session_id = console_channel.resolve_session_id(
         sender_id=native_payload["sender_id"],
         channel_meta=native_payload["meta"],
