@@ -249,7 +249,7 @@ def attach_current_channel_meta(request_payload: Dict[str, Any]) -> None:
     """Forward current channel metadata to a downstream agent request."""
     channel_meta = get_current_channel_meta()
     if channel_meta:
-        request_payload["metadata"] = dict(channel_meta)
+        request_payload["channel_meta"] = dict(channel_meta)
         import logging
         logging.getLogger(__name__).info(
             "[channel_meta] forwarding to agent: %s", list(channel_meta.keys()))
