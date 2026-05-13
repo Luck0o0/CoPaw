@@ -167,8 +167,6 @@ async def post_console_chat(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
-    # Expose BladeX-transmitted metadata to downstream tools (spec S2 H3)
-    from qwenpaw.app.agent_context import set_current_channel_meta
 
     session_id = console_channel.resolve_session_id(
         sender_id=native_payload["sender_id"],
