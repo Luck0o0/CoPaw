@@ -24,7 +24,7 @@ from agentscope.message import TextBlock
 from agentscope.tool import ToolResponse
 from minio import Minio
 
-from qwenpaw.app.agent_context import get_current_channel_meta
+
 
 
 def _minio_client():
@@ -69,6 +69,7 @@ def _ok(object_key: str, media_id: str) -> ToolResponse:
 
 
 async def send_to_minio(file_path: str) -> ToolResponse:
+    from qwenpaw.app.agent_context import get_current_channel_meta  # lazy to avoid circular import
     """Upload file to MinIO and notify BladeX to send to WeCom user.
 
     Precondition: current channel meta must contain bot_code/chat_id/chat_type
