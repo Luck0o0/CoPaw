@@ -251,7 +251,7 @@ export default function ToolsPage() {
           <div className={styles.headerAction}>
             <Switch
               checked={hasEnabledTools && !hasDisabledTools}
-              onChange={() => (hasDisabledTools ? enableAll() : disableAll())}
+              onChange={(checked) => (checked ? enableAll() : disableAll())}
               disabled={batchLoading || loading}
               checkedChildren={t("tools.enableAll")}
               unCheckedChildren={t("tools.disableAll")}
