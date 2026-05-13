@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import httpx
 from agentscope.tool import Toolkit
 
@@ -132,6 +133,42 @@ def test_build_agent_chat_request_reuses_session_id_when_provided():
     assert prefix_added is True
 
 
+def test_attach_current_channel_meta_adds_metadata(monkeypatch):
+    monkeypatch.setattr(
+        agent_management,
+        "get_current_channel_meta",
+        lambda: {
+            "bot_code": "blade",
+            "chat_id": "external-user-1",
+            "chat_type": 1,
+        },
+        raising=False,
+    )
+    payload = {"session_id": "sid", "input": []}
+
+    agent_management.attach_current_channel_meta(payload)
+
+    assert payload["metadata"] == {
+        "bot_code": "blade",
+        "chat_id": "external-user-1",
+        "chat_type": 1,
+    }
+
+
+def test_attach_current_channel_meta_skips_empty_metadata(monkeypatch):
+    monkeypatch.setattr(
+        agent_management,
+        "get_current_channel_meta",
+        lambda: {},
+        raising=False,
+    )
+    payload = {"session_id": "sid", "input": []}
+
+    agent_management.attach_current_channel_meta(payload)
+
+    assert "metadata" not in payload
+
+
 def test_list_agents_data_uses_shared_client(monkeypatch):
     fake_client = _FakeClient(
         get_response=_FakeResponse(
@@ -249,6 +286,65 @@ async def test_list_agents_uses_to_thread(monkeypatch):
     assert '"id": "bot_a"' in response.content[0].get("text", "")
 
 
+def test_submit_to_agent_forwards_channel_metadata(monkeypatch):
+    captured = {}
+
+    def fake_submit_agent_chat_task(
+        _base_url,
+        request_payload,
+        to_agent,
+        _timeout,
+    ):
+        captured["to_agent"] = to_agent
+        captured["payload"] = request_payload
+        return {"task_id": "task-1", "status": "submitted"}
+
+    async def fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(
+        agent_management,
+        "submit_agent_chat_task",
+        fake_submit_agent_chat_task,
+    )
+    monkeypatch.setattr(agent_management.asyncio, "to_thread", fake_to_thread)
+    monkeypatch.setattr(
+        agent_management,
+        "agent_exists",
+        lambda _to_agent, _base_url=None: True,
+    )
+    monkeypatch.setattr(
+        agent_management,
+        "resolve_calling_agent_id",
+        lambda _from_agent=None: "default",
+    )
+    monkeypatch.setattr(
+        agent_management,
+        "get_current_channel_meta",
+        lambda: {
+            "bot_code": "blade",
+            "chat_id": "external-user-1",
+            "chat_type": 1,
+        },
+        raising=False,
+    )
+
+    response = asyncio.run(
+        agent_management.submit_to_agent(
+            to_agent="worker_file",
+            text="generate file in background",
+        ),
+    )
+
+    assert captured["to_agent"] == "worker_file"
+    assert captured["payload"]["metadata"] == {
+        "bot_code": "blade",
+        "chat_id": "external-user-1",
+        "chat_type": 1,
+    }
+    assert "[TASK_ID: task-1]" in response.content[0].get("text", "")
+
+
 async def test_check_agent_task_formats_finished_background_result(
     monkeypatch,
 ):
@@ -278,20 +374,19 @@ async def test_check_agent_task_formats_finished_background_result(
     assert "Background reply" in text
 
 
-async def test_chat_with_agent_uses_to_thread_for_final_mode(monkeypatch):
-    monkeypatch.setattr(
-        agent_management,
-        "collect_final_agent_chat_response",
-        lambda *_args, **_kwargs: {
-            "output": [
-                {
-                    "content": [
-                        {"type": "text", "text": "reply from peer"},
-                    ],
-                },
-            ],
-        },
-    )
+async def test_chat_with_agent_uses_to_thread_for_streaming(monkeypatch):
+    def fake_stream_agent_chat(
+        _base_url,
+        _request_payload,
+        _to_agent,
+        _timeout,
+        line_handler=None,
+    ):
+        if line_handler:
+            line_handler(
+                'data: {"output": [{"content": '
+                '[{"type": "text", "text": "reply from peer"}]}]}',
+            )
 
     calls = []
 
@@ -299,6 +394,11 @@ async def test_chat_with_agent_uses_to_thread_for_final_mode(monkeypatch):
         calls.append((func, args, kwargs))
         return func(*args, **kwargs)
 
+    monkeypatch.setattr(
+        agent_management,
+        "stream_agent_chat",
+        fake_stream_agent_chat,
+    )
     monkeypatch.setattr(agent_management.asyncio, "to_thread", fake_to_thread)
     monkeypatch.setattr(
         agent_management,
@@ -311,40 +411,43 @@ async def test_chat_with_agent_uses_to_thread_for_final_mode(monkeypatch):
         lambda _to_agent, _base_url=None: True,
     )
 
-    response = await agent_management.chat_with_agent(
+    chunks = []
+    async for response in agent_management.chat_with_agent(
         to_agent="bot_b",
         text="Need help",
-    )
+    ):
+        chunks.append(response.content[0].get("text", ""))
 
     assert calls
-    assert calls[-1][0] is agent_management.collect_final_agent_chat_response
-    assert "reply from peer" in response.content[0].get("text", "")
+    assert any("reply from peer" in chunk for chunk in chunks)
 
 
 async def test_chat_with_agent_normalizes_agent_ids(monkeypatch):
     captured = {}
 
-    def fake_collect_final(_base_url, request_payload, to_agent, _timeout):
+    def fake_stream_agent_chat(
+        _base_url,
+        request_payload,
+        to_agent,
+        _timeout,
+        line_handler=None,
+    ):
         captured["to_agent"] = to_agent
         captured["session_id"] = request_payload["session_id"]
         captured["text"] = request_payload["input"][0]["content"][0]["text"]
-        return {
-            "output": [
-                {
-                    "content": [
-                        {"type": "text", "text": "reply from peer"},
-                    ],
-                },
-            ],
-        }
+        if line_handler:
+            line_handler(
+                'data: {"output": [{"content": '
+                '[{"type": "text", "text": "reply from peer"}]}]}',
+            )
 
     async def fake_to_thread(func, *args, **kwargs):
         return func(*args, **kwargs)
 
     monkeypatch.setattr(
         agent_management,
-        "collect_final_agent_chat_response",
-        fake_collect_final,
+        "stream_agent_chat",
+        fake_stream_agent_chat,
     )
     monkeypatch.setattr(agent_management.asyncio, "to_thread", fake_to_thread)
     monkeypatch.setattr(
@@ -358,15 +461,86 @@ async def test_chat_with_agent_normalizes_agent_ids(monkeypatch):
         lambda _from_agent=None: "bot_a",
     )
 
-    response = await agent_management.chat_with_agent(
+    chunks = []
+    async for response in agent_management.chat_with_agent(
         to_agent='  "bot_b"  ',
         text="Need help",
-    )
+    ):
+        chunks.append(response.content[0].get("text", ""))
 
     assert captured["to_agent"] == "bot_b"
     assert captured["session_id"].startswith("bot_a:to:bot_b:")
     assert captured["text"].startswith("[Agent bot_a requesting] ")
-    assert "reply from peer" in response.content[0].get("text", "")
+    assert any("reply from peer" in chunk for chunk in chunks)
+
+
+def test_chat_with_agent_forwards_channel_metadata(monkeypatch):
+    captured = {}
+
+    def fake_stream_agent_chat(
+        _base_url,
+        request_payload,
+        to_agent,
+        _timeout,
+        line_handler=None,
+    ):
+        captured["to_agent"] = to_agent
+        captured["payload"] = request_payload
+        if line_handler:
+            line_handler(
+                'data: {"output": [{"content": '
+                '[{"type": "text", "text": "worker done"}]}]}',
+            )
+
+    async def fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(
+        agent_management,
+        "stream_agent_chat",
+        fake_stream_agent_chat,
+    )
+    monkeypatch.setattr(agent_management.asyncio, "to_thread", fake_to_thread)
+    monkeypatch.setattr(
+        agent_management,
+        "agent_exists",
+        lambda _to_agent, _base_url=None: True,
+    )
+    monkeypatch.setattr(
+        agent_management,
+        "resolve_calling_agent_id",
+        lambda _from_agent=None: "default",
+    )
+    monkeypatch.setattr(
+        agent_management,
+        "get_current_channel_meta",
+        lambda: {
+            "bot_code": "blade",
+            "chat_id": "external-user-1",
+            "chat_type": 1,
+        },
+        raising=False,
+    )
+
+    async def collect_chunks():
+        chunks = []
+        async for response in agent_management.chat_with_agent(
+            to_agent="worker_file",
+            text="generate file",
+            timeout=600,
+        ):
+            chunks.append(response.content[0].get("text", ""))
+        return chunks
+
+    chunks = asyncio.run(collect_chunks())
+
+    assert captured["to_agent"] == "worker_file"
+    assert captured["payload"]["metadata"] == {
+        "bot_code": "blade",
+        "chat_id": "external-user-1",
+        "chat_type": 1,
+    }
+    assert any("worker done" in chunk for chunk in chunks)
 
 
 async def test_chat_with_agent_returns_clear_error_when_agent_missing(
@@ -382,11 +556,11 @@ async def test_chat_with_agent_returns_clear_error_when_agent_missing(
         lambda _to_agent, _base_url=None: False,
     )
 
-    response = await agent_management.chat_with_agent(
+    chunks = []
+    async for response in agent_management.chat_with_agent(
         to_agent='  "missing_bot"  ',
         text="Need help",
-    )
+    ):
+        chunks.append(response.content[0].get("text", ""))
 
-    assert (
-        response.content[0].get("text", "") == "Agent [missing_bot] not exists"
-    )
+    assert chunks == ["Agent [missing_bot] not exists"]

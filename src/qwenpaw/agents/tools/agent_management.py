@@ -56,6 +56,13 @@ def _json_text(data: Any) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)
 
 
+def get_current_channel_meta() -> Dict[str, Any]:
+    """Return current channel metadata for inter-agent forwarding."""
+    from ...app.agent_context import get_current_channel_meta as _get_meta
+
+    return _get_meta()
+
+
 def normalize_id(id_to_normalize: Optional[str]) -> Optional[str]:
     """Trim surrounding whitespace and quotes from an ID."""
     if id_to_normalize is None:
@@ -235,6 +242,14 @@ def build_agent_chat_request(
         request_payload["root_session_id"] = root_session_id
 
     return final_session_id, request_payload, final_text != text
+
+
+
+def attach_current_channel_meta(request_payload: Dict[str, Any]) -> None:
+    """Forward current channel metadata to a downstream agent request."""
+    channel_meta = get_current_channel_meta()
+    if channel_meta:
+        request_payload["metadata"] = dict(channel_meta)
 
 
 def _request_headers(
@@ -480,6 +495,7 @@ async def chat_with_agent(
         from_agent=None,
         root_session_id=final_root_session,
     )
+    attach_current_channel_meta(request_payload)
 
     # Thread-safe queue for streaming worker output back
     text_queue = queue.Queue()
@@ -593,6 +609,7 @@ async def submit_to_agent(
         from_agent=None,
         root_session_id=final_root_session,
     )
+    attach_current_channel_meta(request_payload)
 
     result = await asyncio.to_thread(
         submit_agent_chat_task,
