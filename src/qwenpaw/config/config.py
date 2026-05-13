@@ -1441,6 +1441,12 @@ def _default_builtin_tools() -> Dict[str, BuiltinToolConfig]:
             description="Send files to user",
             icon="📤",
         ),
+        "send_to_minio": BuiltinToolConfig(
+            name="send_to_minio",
+            enabled=True,
+            description="Upload file to MinIO and send to WeCom user",
+            icon="📤",
+        ),
         "get_current_time": BuiltinToolConfig(
             name="get_current_time",
             enabled=True,
