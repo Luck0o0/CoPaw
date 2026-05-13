@@ -250,6 +250,9 @@ def attach_current_channel_meta(request_payload: Dict[str, Any]) -> None:
     channel_meta = get_current_channel_meta()
     if channel_meta:
         request_payload["metadata"] = dict(channel_meta)
+        import logging
+        logging.getLogger(__name__).info(
+            "[channel_meta] forwarding to agent: %s", list(channel_meta.keys()))
 
 
 def _request_headers(
