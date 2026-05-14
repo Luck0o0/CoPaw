@@ -333,6 +333,7 @@ class AgentRunner(Runner):
         # Set agent context for model creation
         from ..agent_context import (
             set_current_agent_id,
+            set_current_channel_meta,
             set_current_session_id,
             set_current_root_session_id,
         )
@@ -349,6 +350,10 @@ class AgentRunner(Runner):
             session_id = request.session_id
             user_id = request.user_id
             channel = getattr(request, "channel", DEFAULT_CHANNEL)
+            channel_meta = getattr(request, "channel_meta", None)
+            if not isinstance(channel_meta, dict):
+                channel_meta = {}
+            set_current_channel_meta(channel_meta)
 
             logger.info(
                 "Handle agent query:\n%s",
@@ -366,9 +371,6 @@ class AgentRunner(Runner):
             )
 
             # Optional sender display name from channel_meta.user_name.
-            channel_meta = getattr(request, "channel_meta", None)
-            if not isinstance(channel_meta, dict):
-                channel_meta = {}
             user_name = channel_meta.get("user_name")
 
             # Load agent-specific configuration
