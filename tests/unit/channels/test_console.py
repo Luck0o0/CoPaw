@@ -178,6 +178,41 @@ class TestConsoleChannelUnit:
         assert "Line 1" in captured.out
         assert "Line 2" in captured.out
 
+    def test_build_agent_request_preserves_top_level_metadata(
+        self,
+        channel,
+    ):
+        """BladeX metadata should be available to runner and tools."""
+        from qwenpaw.app.channels.base import TextContent, ContentType
+
+        request = channel.build_agent_request_from_native(
+            {
+                "channel_id": "wecom",
+                "sender_id": "blade:1123598821738675201",
+                "content_parts": [
+                    TextContent(type=ContentType.TEXT, text="生成 PDF"),
+                ],
+                "meta": {
+                    "session_id": "wecom:LiuKang",
+                    "user_id": "blade:1123598821738675201",
+                },
+                "metadata": {
+                    "bot_code": "test-bot",
+                    "chat_id": "LiuKang",
+                    "chat_type": 1,
+                },
+            },
+        )
+
+        assert request.channel_meta["bot_code"] == "test-bot"
+        assert request.channel_meta["chat_id"] == "LiuKang"
+        assert request.channel_meta["chat_type"] == 1
+        assert request.input[0].metadata == {
+            "bot_code": "test-bot",
+            "chat_id": "LiuKang",
+            "chat_type": 1,
+        }
+
 
 class TestConsoleChannelFromEnv:
     """Tests for from_env factory method."""
