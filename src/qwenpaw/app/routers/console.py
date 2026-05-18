@@ -78,8 +78,9 @@ def _extract_session_and_payload(request_data: Union[AgentRequest, dict]):
         channel_id = getattr(request_data, "channel", None) or "console"
         sender_id = request_data.user_id or "default"
         session_id = request_data.session_id or "default"
+        input_data = request_data.input or []
         content_parts = (
-            list(request_data.input[0].content) if request_data.input else []
+            list(input_data[0].content) if input_data else []
         )
     else:
         channel_id = request_data.get("channel", "console")
@@ -93,7 +94,8 @@ def _extract_session_and_payload(request_data: Union[AgentRequest, dict]):
             elif isinstance(content_part, dict) and "content" in content_part:
                 content_parts.extend(content_part["content"] or [])
 
-    # Extract metadata (spec S2 H3): BladeX transmits bot_code/chat_id/chat_type
+    # Extract metadata (spec S2 H3): BladeX transmits
+    # bot_code/chat_id/chat_type in top-level metadata
     if isinstance(request_data, AgentRequest):
         metadata = getattr(request_data, "metadata", None) or {}
     else:
