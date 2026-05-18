@@ -169,7 +169,6 @@ async def post_console_chat(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
-
     session_id = console_channel.resolve_session_id(
         sender_id=native_payload["sender_id"],
         channel_meta=native_payload["meta"],

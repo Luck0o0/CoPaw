@@ -365,10 +365,16 @@ class RetryChatModel(ChatModelBase):
                 ``on_success()`` so only stale pauses are cleared.
         """
         first_chunk = True
+        stream_start = time.perf_counter()
         try:
             async for chunk in stream:
                 if first_chunk:
                     first_chunk = False
+                    logger.info(
+                        "[TIMER] LLM stream TTFT (%s): %.3fs",
+                        self.model_key,
+                        time.perf_counter() - stream_start,
+                    )
                     # return the slot once the API starts delivering
                     limiter.release()
                     # streaming success: clear any stale 429 pause so
@@ -376,6 +382,11 @@ class RetryChatModel(ChatModelBase):
                     # held back by a pause set by a background task.
                     await limiter.on_success(acquired_at)
                 yield chunk
+            logger.info(
+                "[TIMER] LLM stream total (%s): %.3fs",
+                self.model_key,
+                time.perf_counter() - stream_start,
+            )
         finally:
             await stream.aclose()
             if first_chunk:
@@ -419,6 +430,7 @@ class RetryChatModel(ChatModelBase):
             acquired = False
             owns_semaphore = True
             acquired_at: float = 0.0
+            t_acq_start = time.perf_counter()
             try:
                 try:
                     acquired_at = await asyncio.wait_for(
@@ -440,13 +452,17 @@ class RetryChatModel(ChatModelBase):
                         },
                     ) from exc
 
+                t_acq = time.perf_counter() - t_acq_start
+
                 try:
                     t0 = time.perf_counter()
                     result = await self._inner(*args, **kwargs)
                     latency = time.perf_counter() - t0
                     logger.info(
-                        "[TIMER] LLM call (%s): %.3fs (attempt=%d/%d)",
+                        "[TIMER] LLM (%s): "
+                        "acquire=%.3fs inference=%.3fs attempt=%d/%d",
                         self.model_key,
+                        t_acq,
                         latency,
                         attempt,
                         attempts,
@@ -467,9 +483,14 @@ class RetryChatModel(ChatModelBase):
                     result = await self._inner(*args, **kwargs)
                     latency = time.perf_counter() - t0
                     logger.info(
-                        "[TIMER] LLM call (%s): %.3fs (attempt=retry)",
+                        "[TIMER] LLM (%s): "
+                        "acquire=%.3fs inference=%.3fs "
+                        "attempt=%d/%d (reasoning-retry)",
                         self.model_key,
+                        t_acq,
                         latency,
+                        attempt,
+                        attempts,
                     )
 
                 if isinstance(result, AsyncGenerator):
