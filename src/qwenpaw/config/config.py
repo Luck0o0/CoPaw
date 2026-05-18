@@ -229,6 +229,7 @@ class DingTalkConfig(BaseChannelConfig):
     media_dir: Optional[str] = None
     card_auto_layout: bool = False
     at_sender_on_reply: bool = False
+    streaming_enabled: bool = False
 
 
 class FeishuConfig(BaseChannelConfig):
@@ -267,6 +268,7 @@ class TelegramConfig(BaseChannelConfig):
     http_proxy: str = ""
     http_proxy_auth: str = ""
     show_typing: Optional[bool] = None
+    streaming_enabled: bool = False
 
 
 class MQTTConfig(BaseChannelConfig):
@@ -336,7 +338,6 @@ class MatrixConfig(BaseChannelConfig):
     # When False, images are surfaced as text placeholders (no vision URL).
     vision_enabled: bool = True
     history_limit: int = 50
-    username: str = ""
     password: str = ""
     device_name: str = "qwenpaw-worker"
     # matrix-nio sync long-poll timeout (ms); typical 30s
@@ -1440,6 +1441,12 @@ def _default_builtin_tools() -> Dict[str, BuiltinToolConfig]:
             description="Send files to user",
             icon="📤",
         ),
+        "send_to_minio": BuiltinToolConfig(
+            name="send_to_minio",
+            enabled=True,
+            description="Upload file to MinIO and send to WeCom user",
+            icon="📤",
+        ),
         "get_current_time": BuiltinToolConfig(
             name="get_current_time",
             enabled=True,
@@ -1933,6 +1940,18 @@ def load_agent_config(agent_id: str) -> AgentProfileConfig:
             data = _normalize_working_dir_bound_paths(data)
         except Exception:
             pass
+
+        # 合并全局 config.json 中的自定义 channel（如 bladex）到 agent 配置中。
+        # 这样新建 agent 和已有 agent 都能自动继承自定义 channel 的配置字段，
+        # 无需每个 agent 手动在 agent.json 中补 channels。
+        agent_channels = data.get("channels") if isinstance(data.get("channels"), dict) else {}
+        global_channels = getattr(config, "channels", None)
+        if global_channels:
+            global_extra = getattr(global_channels, "__pydantic_extra__", None) or {}
+            for key, val in global_extra.items():
+                if key not in agent_channels:
+                    agent_channels[key] = val
+            data["channels"] = agent_channels
 
         agent_config = AgentProfileConfig(**data)
 

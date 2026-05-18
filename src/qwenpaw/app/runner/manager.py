@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Optional
 
 from .models import ChatSpec, ChatUpdate
 from .repo import BaseChatRepository
 from ..channels.schema import DEFAULT_CHANNEL
+from .session import sanitize_filename
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +29,19 @@ class ChatManager:
         self,
         *,
         repo: BaseChatRepository,
+        sessions_dir: str | None = None,
     ):
         """Initialize chat manager.
 
         Args:
             repo: Chat spec repository for persistence
+            sessions_dir: Directory where session JSON files are stored.
+                When set, ``delete_chats`` also removes the corresponding
+                session files.
         """
         self._repo = repo
         self._lock = asyncio.Lock()
+        self._sessions_dir = sessions_dir
         logger.debug(
             f"ChatManager created with repo path: {repo.path}",
         )
@@ -206,9 +213,7 @@ class ChatManager:
         return await self.patch_chat(chat_id, ChatUpdate())
 
     async def delete_chats(self, chat_ids: list[str]) -> bool:
-        """Delete a chat spec.
-
-        Note: This only deletes the spec. Redis session state is NOT deleted.
+        """Delete chat specs and their session files.
 
         Args:
             chat_ids: List of chat IDs
@@ -217,12 +222,38 @@ class ChatManager:
             True if deleted, False if not found
         """
         async with self._lock:
-            deleted = await self._repo.delete_chats(chat_ids)
+            # Resolve user_id / session_id before deletion
+            chat_specs = await self._repo.get_chats_by_ids(chat_ids)
 
-            if deleted:
-                logger.debug(f"Deleted chats: {chat_ids}")
+            deleted = await self._repo.delete_chats(chat_ids)
+            if not deleted:
+                return False
+
+            logger.debug(f"Deleted chats: {chat_ids}")
+
+            # Clean up session files
+            if self._sessions_dir and chat_specs:
+                for spec in chat_specs:
+                    self._remove_session_file(
+                        spec.session_id, spec.user_id, self._sessions_dir,
+                    )
 
             return deleted
+
+    @staticmethod
+    def _remove_session_file(session_id: str, user_id: str, sessions_dir: str) -> None:
+        """Remove the session JSON file for a given session/user pair."""
+        safe_sid = sanitize_filename(session_id)
+        safe_uid = sanitize_filename(user_id) if user_id else ""
+        filename = f"{safe_uid}_{safe_sid}.json" if safe_uid else f"{safe_sid}.json"
+        filepath = os.path.join(sessions_dir, filename)
+        try:
+            os.remove(filepath)
+            logger.debug(f"Removed session file: {filepath}")
+        except FileNotFoundError:
+            logger.debug(f"Session file not found (already removed): {filepath}")
+        except OSError as exc:
+            logger.warning(f"Failed to remove session file {filepath}: {exc}")
 
     async def count_chats(
         self,

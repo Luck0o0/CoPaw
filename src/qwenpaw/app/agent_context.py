@@ -4,7 +4,7 @@
 Provides utilities to get the correct agent instance for each request.
 """
 from contextvars import ContextVar
-from typing import Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, TYPE_CHECKING
 from fastapi import Request
 from .multi_agent_manager import MultiAgentManager
 from ..config.utils import load_config
@@ -28,6 +28,15 @@ _current_session_id: ContextVar[Optional[str]] = ContextVar(
 _current_root_session_id: ContextVar[Optional[str]] = ContextVar(
     "current_root_session_id",
     default=None,
+)
+
+# Context variable for channel metadata (spec S2 H3).
+# For wecom channel: contains bot_code, chat_id, chat_type.
+# BladeX transmits these via request metadata -> console.py sets this
+# via set_current_channel_meta() -> downstream tools read via get_current_channel_meta().
+_current_channel_meta: ContextVar[Dict[str, Any]] = ContextVar(
+    "current_channel_meta",
+    default={},
 )
 
 
@@ -176,3 +185,25 @@ def get_current_root_session_id() -> Optional[str]:
         Root session ID or None
     """
     return _current_root_session_id.get()
+
+
+def set_current_channel_meta(meta: Dict[str, Any]) -> None:
+    """Set channel metadata for the current async context (spec S2 H3).
+
+    Called by console.py after extracting BladeX metadata.
+
+    Args:
+        meta: Channel metadata dict (bot_code, chat_id, chat_type, etc.)
+    """
+    _current_channel_meta.set(meta or {})
+
+
+def get_current_channel_meta() -> Dict[str, Any]:
+    """Get channel metadata for the current async context (spec S2 H3).
+
+    Returns empty dict if not set.
+
+    Returns:
+        Channel metadata dict (bot_code, chat_id, chat_type, etc.)
+    """
+    return _current_channel_meta.get()
