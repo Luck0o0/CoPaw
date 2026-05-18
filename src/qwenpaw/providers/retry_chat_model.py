@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator
 
@@ -440,7 +441,16 @@ class RetryChatModel(ChatModelBase):
                     ) from exc
 
                 try:
+                    t0 = time.perf_counter()
                     result = await self._inner(*args, **kwargs)
+                    latency = time.perf_counter() - t0
+                    logger.info(
+                        "[TIMER] LLM call (%s): %.3fs (attempt=%d/%d)",
+                        self.model_key,
+                        latency,
+                        attempt,
+                        attempts,
+                    )
                 except Exception as inner_exc:
                     if not (
                         _is_missing_reasoning_content_error(inner_exc)
@@ -453,7 +463,14 @@ class RetryChatModel(ChatModelBase):
                         "on every assistant message. Injecting empty "
                         "values and retrying (learned for future calls).",
                     )
+                    t0 = time.perf_counter()
                     result = await self._inner(*args, **kwargs)
+                    latency = time.perf_counter() - t0
+                    logger.info(
+                        "[TIMER] LLM call (%s): %.3fs (attempt=retry)",
+                        self.model_key,
+                        latency,
+                    )
 
                 if isinstance(result, AsyncGenerator):
                     # Transfer semaphore ownership to _wrap_stream, which uses

@@ -18,6 +18,7 @@ from agentscope.tool import ToolResponse
 from ...config.utils import read_last_api
 from ...utils.http import trust_env_for_url
 
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_AGENT_API_BASE_URL = "http://127.0.0.1:8088"
@@ -477,6 +478,7 @@ async def chat_with_agent(
         session_id: Existing session ID to continue a conversation.
         timeout: Max wait time in seconds.
     """
+    _cwa_start = time.perf_counter()
     normalized_to_agent = normalize_id(to_agent)
     normalized_session_id = normalize_id(session_id)
     if not normalized_to_agent:
@@ -555,6 +557,14 @@ async def chat_with_agent(
     session_header = ""
     if final_session_id:
         session_header = f"[SESSION: {final_session_id}]\n\n"
+
+    _cwa_elapsed = time.perf_counter() - _cwa_start
+    logger.info(
+        "[TIMER] chat_with_agent (%s -> %s): %.3fs",
+        caller_session_id or "?",
+        normalized_to_agent,
+        _cwa_elapsed,
+    )
     yield _tool_text_response(session_header + final_text)
 
 
