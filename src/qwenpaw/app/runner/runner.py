@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Coroutine
 
@@ -75,6 +76,7 @@ async def _stream_printing_messages_interruptible(
     promptly when the outer stream is stopped or closed.
     """
 
+    _spi_start = time.perf_counter()
     queue: asyncio.Queue = asyncio.Queue()
     for agent in agents:
         agent.set_msg_queue_enabled(True, queue)
@@ -104,6 +106,12 @@ async def _stream_printing_messages_interruptible(
         raise
     finally:
         await _cancel_streaming_agent_task(task)
+        _spi_elapsed = time.perf_counter() - _spi_start
+        logger.info(
+            "[TIMER] stream_queue (%s): %.3fs",
+            getattr(agents[0], "name", "?") if agents else "?",
+            _spi_elapsed,
+        )
 
 
 class AgentRunner(Runner):
@@ -310,6 +318,7 @@ class AgentRunner(Runner):
         """
         Handle agent query.
         """
+        _qh_start = time.perf_counter()
         logger.debug(
             f"AgentRunner.query_handler called: agent_id={self.agent_id}, "
             f"msgs={msgs}, request={request}",
@@ -593,6 +602,7 @@ class AgentRunner(Runner):
                     )
                     plan_notebook = None
 
+            t0 = time.perf_counter()
             agent = QwenPawAgent(
                 agent_config=agent_config,
                 env_context=env_context,
@@ -606,6 +616,11 @@ class AgentRunner(Runner):
             )
             await agent.register_mcp_clients()
             agent.set_console_output_enabled(enabled=False)
+            logger.info(
+                "[TIMER] agent_init (%s): %.3fs",
+                self.agent_id,
+                time.perf_counter() - t0,
+            )
 
             logger.debug(
                 f"Agent Query msgs {msgs}",
@@ -693,11 +708,17 @@ class AgentRunner(Runner):
                     True,  # pylint: disable=protected-access
                 )
             try:
+                t0 = time.perf_counter()
                 await self.session.load_session_state(
                     session_id=session_id,
                     user_id=user_id,
                     channel=channel,
                     agent=agent,
+                )
+                logger.info(
+                    "[TIMER] session_load (%s): %.3fs",
+                    self.agent_id,
+                    time.perf_counter() - t0,
                 )
             except KeyError as e:
                 logger.warning(
@@ -723,6 +744,14 @@ class AgentRunner(Runner):
             # AGENTS.md / SOUL.md / PROFILE.md, not the stale one saved
             # in the session state.
             agent.rebuild_sys_prompt()
+            _prompt_snippet = agent.sys_prompt[:300] if agent.sys_prompt else ""
+            logger.info(
+                "[prompt-check] agent=%s len=%d has_submit=%s has_chat=%s",
+                self.agent_id,
+                len(agent.sys_prompt) if agent.sys_prompt else 0,
+                "submit_to_agent" in _prompt_snippet or "submit_to_agent" in (agent.sys_prompt or ""),
+                "chat_with_agent" in _prompt_snippet or "chat_with_agent" in (agent.sys_prompt or ""),
+            )
 
             # --- Execution: Mission Mode (phased) or standard -----
             if mission_info is not None:
@@ -829,15 +858,28 @@ class AgentRunner(Runner):
             raise converted from e
         finally:
             if agent is not None and session_state_loaded:
+                t0 = time.perf_counter()
                 await self.session.save_session_state(
                     session_id=session_id,
                     user_id=user_id,
                     channel=channel,
                     agent=agent,
                 )
+                logger.info(
+                    "[TIMER] session_save (%s): %.3fs",
+                    self.agent_id,
+                    time.perf_counter() - t0,
+                )
 
             if self._chat_manager is not None and chat is not None:
                 await self._chat_manager.touch_chat(chat.id)
+
+            _qh_elapsed = time.perf_counter() - _qh_start
+            logger.info(
+                "[TIMER] query_handler (%s): %.3fs",
+                self.agent_id,
+                _qh_elapsed,
+            )
 
     async def init_handler(self, *args, **kwargs):
         """

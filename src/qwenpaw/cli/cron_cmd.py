@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -9,6 +10,9 @@ import click
 
 from .http import client, print_json
 from ..app.channels.schema import DEFAULT_CHANNEL
+
+
+CRON_DISPATCH_CONTEXT_ENV = "QWENPAW_CRON_DISPATCH_CONTEXT"
 
 
 def _base_url(ctx: click.Context, base_url: Optional[str]) -> str:
@@ -22,6 +26,49 @@ def _base_url(ctx: click.Context, base_url: Optional[str]) -> str:
     host = (ctx.obj or {}).get("host", "127.0.0.1")
     port = (ctx.obj or {}).get("port", 8088)
     return f"http://{host}:{port}"
+
+
+def _load_forwarded_dispatch_context() -> dict:
+    raw = os.environ.get(CRON_DISPATCH_CONTEXT_ENV)
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _apply_forwarded_dispatch_context(payload: dict) -> dict:
+    """Route cron delivery back to the frontend request target when present."""
+    ctx = _load_forwarded_dispatch_context()
+    if not ctx:
+        return payload
+
+    dispatch = payload.get("dispatch")
+    if not isinstance(dispatch, dict):
+        return payload
+
+    target = dispatch.get("target")
+    if not isinstance(target, dict):
+        target = {}
+        dispatch["target"] = target
+
+    channel = ctx.get("channel")
+    target_user = ctx.get("target_user")
+    target_session = ctx.get("target_session")
+    meta = ctx.get("meta")
+
+    if isinstance(channel, str) and channel.strip():
+        dispatch["channel"] = channel.strip()
+    if isinstance(target_user, str) and target_user.strip():
+        target["user_id"] = target_user.strip()
+    if isinstance(target_session, str) and target_session.strip():
+        target["session_id"] = target_session.strip()
+    if isinstance(meta, dict):
+        dispatch["meta"] = dict(meta)
+
+    return payload
 
 
 @click.group("cron")
@@ -575,6 +622,7 @@ def create_job(
             share_session=share_session,
             timeout_seconds=timeout_seconds,
         )
+    payload = _apply_forwarded_dispatch_context(payload)
     with client(base_url) as c:
         headers = {"X-Agent-Id": agent_id}
         r = c.post("/cron/jobs", json=payload, headers=headers)

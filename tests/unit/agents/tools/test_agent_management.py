@@ -148,7 +148,7 @@ def test_attach_current_channel_meta_adds_metadata(monkeypatch):
 
     agent_management.attach_current_channel_meta(payload)
 
-    assert payload["metadata"] == {
+    assert payload["channel_meta"] == {
         "bot_code": "blade",
         "chat_id": "external-user-1",
         "chat_type": 1,
@@ -337,7 +337,7 @@ def test_submit_to_agent_forwards_channel_metadata(monkeypatch):
     )
 
     assert captured["to_agent"] == "worker_file"
-    assert captured["payload"]["metadata"] == {
+    assert captured["payload"]["channel_meta"] == {
         "bot_code": "blade",
         "chat_id": "external-user-1",
         "chat_type": 1,
@@ -535,7 +535,7 @@ def test_chat_with_agent_forwards_channel_metadata(monkeypatch):
     chunks = asyncio.run(collect_chunks())
 
     assert captured["to_agent"] == "worker_file"
-    assert captured["payload"]["metadata"] == {
+    assert captured["payload"]["channel_meta"] == {
         "bot_code": "blade",
         "chat_id": "external-user-1",
         "chat_type": 1,
@@ -564,3 +564,57 @@ async def test_chat_with_agent_returns_clear_error_when_agent_missing(
         chunks.append(response.content[0].get("text", ""))
 
     assert chunks == ["Agent [missing_bot] not exists"]
+
+
+def test_resolve_agent_session_id_derives_from_root_session():
+    """When session_id is empty but root_session_id is provided,
+    derive a stable session_id from root_session_id + to_agent."""
+    result = agent_management.resolve_agent_session_id(
+        from_agent="manager",
+        to_agent="worker_search",
+        session_id=None,
+        root_session_id="wecom:user_123",
+    )
+
+    assert result == "wecom:user_123::worker_search"
+
+
+def test_resolve_agent_session_id_falls_back_to_unique_when_no_root():
+    """When both session_id and root_session_id are empty,
+    fall back to generate_unique_session_id."""
+    result = agent_management.resolve_agent_session_id(
+        from_agent="manager",
+        to_agent="worker_search",
+        session_id=None,
+        root_session_id=None,
+    )
+
+    assert result.startswith("manager:to:worker_search:")
+
+
+def test_resolve_agent_session_id_prefers_explicit_session_id():
+    """When session_id is explicitly provided, ignore root_session_id."""
+    result = agent_management.resolve_agent_session_id(
+        from_agent="manager",
+        to_agent="worker_search",
+        session_id="my-custom-session",
+        root_session_id="wecom:user_123",
+    )
+
+    assert result == "my-custom-session"
+
+
+def test_build_agent_chat_request_forwards_root_session_id():
+    """build_agent_chat_request passes root_session_id through to
+    resolve_agent_session_id for stable session derivation."""
+    session_id, payload, _ = agent_management.build_agent_chat_request(
+        to_agent="worker_search",
+        text="search something",
+        from_agent="manager",
+        root_session_id="wecom:user_123",
+        session_id=None,
+    )
+
+    assert session_id == "wecom:user_123::worker_search"
+    assert payload["session_id"] == "wecom:user_123::worker_search"
+    assert payload["root_session_id"] == "wecom:user_123"

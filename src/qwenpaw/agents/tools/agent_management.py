@@ -3,6 +3,7 @@
 
 import asyncio
 import json
+import logging
 import queue
 import re
 import time
@@ -17,6 +18,8 @@ from agentscope.tool import ToolResponse
 from ...config.utils import read_last_api
 from ...utils.http import trust_env_for_url
 
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_AGENT_API_BASE_URL = "http://127.0.0.1:8088"
 DEFAULT_AGENT_API_TIMEOUT = 30.0
@@ -108,12 +111,21 @@ def resolve_agent_session_id(
     from_agent: Optional[str],
     to_agent: str,
     session_id: Optional[str],
+    root_session_id: Optional[str] = None,
 ) -> str:
-    """Resolve the effective session ID based on session reuse semantics."""
+    """Resolve the effective session ID based on session reuse semantics.
+
+    Priority:
+    1. Explicit ``session_id`` argument
+    2. Stable derived ID from ``root_session_id + to_agent``
+    3. Unique timestamp+uuid ID (fallback)
+    """
     caller_agent_id = resolve_calling_agent_id(from_agent)
-    if not session_id:
-        return generate_unique_session_id(caller_agent_id, to_agent)
-    return session_id
+    if session_id:
+        return session_id
+    if root_session_id:
+        return f"{root_session_id}::{to_agent}"
+    return generate_unique_session_id(caller_agent_id, to_agent)
 
 
 def ensure_agent_identity_prefix(
@@ -222,6 +234,7 @@ def build_agent_chat_request(
         caller_agent_id,
         to_agent,
         session_id,
+        root_session_id=root_session_id,
     )
     final_text = ensure_agent_identity_prefix(text, caller_agent_id)
     request_payload = {
@@ -250,8 +263,7 @@ def attach_current_channel_meta(request_payload: Dict[str, Any]) -> None:
     channel_meta = get_current_channel_meta()
     if channel_meta:
         request_payload["channel_meta"] = dict(channel_meta)
-        import logging
-        logging.getLogger(__name__).info(
+        logger.info(
             "[channel_meta] forwarding to agent: %s", list(channel_meta.keys()))
 
 
@@ -466,6 +478,7 @@ async def chat_with_agent(
         session_id: Existing session ID to continue a conversation.
         timeout: Max wait time in seconds.
     """
+    _cwa_start = time.perf_counter()
     normalized_to_agent = normalize_id(to_agent)
     normalized_session_id = normalize_id(session_id)
     if not normalized_to_agent:
@@ -544,6 +557,14 @@ async def chat_with_agent(
     session_header = ""
     if final_session_id:
         session_header = f"[SESSION: {final_session_id}]\n\n"
+
+    _cwa_elapsed = time.perf_counter() - _cwa_start
+    logger.info(
+        "[TIMER] chat_with_agent (%s -> %s): %.3fs",
+        caller_session_id or "?",
+        normalized_to_agent,
+        _cwa_elapsed,
+    )
     yield _tool_text_response(session_header + final_text)
 
 

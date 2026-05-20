@@ -316,11 +316,17 @@ class QwenPawAgent(ToolGuardMixin, ReActAgent):
                 pass
 
             # Check if tool is enabled
-            if not enabled_tools.get(
+            _enabled = enabled_tools.get(
                 tool_name,
                 tool_name in hardcoded_builtin_tools,
-            ):
-                logger.debug("Skipped disabled tool: %s", tool_name)
+            )
+            if not _enabled:
+                logger.info(
+                    "[tools-debug] agent=%s skipped disabled tool: %s (enabled=%s)",
+                    self._agent_config.id if self._agent_config else "?",
+                    tool_name,
+                    _enabled,
+                )
                 continue
 
             # Get async_execution setting (default to False for backward

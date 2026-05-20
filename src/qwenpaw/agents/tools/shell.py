@@ -4,6 +4,7 @@
 """The shell command tool."""
 
 import asyncio
+import json
 import locale
 import os
 import re
@@ -23,6 +24,35 @@ from ...config.context import (
     get_current_shell_command_timeout,
     get_current_workspace_dir,
 )
+
+
+CRON_DISPATCH_CONTEXT_ENV = "QWENPAW_CRON_DISPATCH_CONTEXT"
+
+
+def _build_cron_dispatch_context_env() -> Optional[str]:
+    """Serialize frontend dispatch context for child qwenpaw cron commands."""
+    from ...app.agent_context import get_current_channel_meta
+
+    meta = get_current_channel_meta()
+    if not isinstance(meta, dict) or not meta:
+        return None
+
+    channel = meta.get("channel_id")
+    if not channel and meta.get("bot_code") == "blade":
+        channel = "bladex"
+    target_user = meta.get("user_id")
+    target_session = meta.get("session_id")
+
+    if not (channel and target_user and target_session):
+        return None
+
+    context = {
+        "channel": str(channel),
+        "target_user": str(target_user),
+        "target_session": str(target_session),
+        "meta": dict(meta),
+    }
+    return json.dumps(context, ensure_ascii=False, separators=(",", ":"))
 
 
 def _kill_process_tree_win32(pid: int) -> None:
@@ -411,6 +441,9 @@ async def execute_shell_command(
         env["PATH"] = python_bin_dir + os.pathsep + existing_path
     else:
         env["PATH"] = python_bin_dir
+    cron_dispatch_context = _build_cron_dispatch_context_env()
+    if cron_dispatch_context:
+        env[CRON_DISPATCH_CONTEXT_ENV] = cron_dispatch_context
 
     shell_executable = (
         get_current_shell_command_executable()

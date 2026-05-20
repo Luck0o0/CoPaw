@@ -372,11 +372,27 @@ class Workspace:
             self._config = load_agent_config(self.agent_id)
             logger.debug(f"Loaded config for agent: {self.agent_id}")
 
-            # 2. Run legacy weixin -> wechat data migrations BEFORE services
+            # 2. Ensure workspace template files exist (repair on startup)
+            from ...agents.utils import copy_workspace_md_files
+            from ..routers.agents import _ensure_heartbeat_file
+
+            language = getattr(
+                self._config, "language", None,
+            ) or "zh"
+            copy_workspace_md_files(
+                language,
+                self.workspace_dir,
+            )
+            _ensure_heartbeat_file(self.workspace_dir, language)
+            logger.debug(
+                f"Workspace template files ensured for: {self.agent_id}",
+            )
+
+            # 3. Run legacy weixin -> wechat data migrations BEFORE services
             # start so ChatManager / Runner see the canonical layout.
             self._migrate_legacy_weixin_data()
 
-            # 3. Start all services via ServiceManager
+            # 4. Start all services via ServiceManager
             await self._service_manager.start_all()
 
             self._started = True
