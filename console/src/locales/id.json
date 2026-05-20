@@ -63,14 +63,17 @@
     "voiceTranscription": "Transkripsi Suara",
     "debug": "Debug",
     "plugins": "Plugin",
+    "pluginManager": "Manajer Plugin",
     "backups": "Cadangan"
   },
   "header": {
-    "changelog": "Changelog",
+    "changelog": "Catatan Perubahan",
     "docs": "Dokumentasi",
     "tutorial": "Tutorial",
+    "featureDemos": "Demo Fitur",
     "faq": "FAQ",
     "github": "GitHub",
+    "resources": "Dokumentasi",
     "updateAvailable": "Pembaruan Tersedia"
   },
   "theme": {
@@ -450,7 +453,17 @@
     "action": "Tindakan",
     "executeNow": "Jalankan Sekarang",
     "totalItems": "Total {{count}} item",
-    "selectTimezone": "Pilih zona waktu"
+    "selectTimezone": "Pilih zona waktu",
+    "validation": {
+      "cronRequired": "Ekspresi cron wajib diisi untuk jadwal berulang.",
+      "runAtRequired": "Waktu eksekusi wajib diisi untuk jadwal sekali jalan.",
+      "repeatUntilRequired": "Saat memilih \"Berakhir pada tanggal\", tanggal akhir wajib diisi.",
+      "repeatCountRequired": "Saat memilih \"Jumlah terbatas\", jumlah eksekusi wajib diisi.",
+      "repeatUntilAfterRunAt": "Tanggal akhir harus lebih lambat daripada waktu eksekusi. Pilih tanggal akhir setelah waktu eksekusi.",
+      "textRequired": "Konten pesan wajib diisi saat jenis tugas adalah text.",
+      "requestRequired": "Konten request wajib diisi saat jenis tugas adalah agent.",
+      "invalidCronExpression": "Ekspresi cron tidak valid. Gunakan format cron 5 kolom."
+    }
   },
   "heartbeat": {
     "title": "Heartbeat",
@@ -579,6 +592,49 @@
       "tokenEndpoint": "Token Endpoint (timpa)",
       "endpointHint": "Kosongkan untuk deteksi otomatis dari server MCP."
     }
+  },
+  "pluginManager": {
+    "title": "Manajer Plugin",
+    "description": "Instal, kelola, dan hapus plugin tanpa me-restart layanan.",
+    "installed": "Plugin Terinstal",
+    "noPlugins": "Belum ada plugin yang terinstal",
+    "installBtn": "Instal Plugin",
+    "installTitle": "Instal Plugin",
+    "dropPrimary": "Letakkan folder atau ZIP di sini",
+    "dropSecondary": "atau klik untuk memilih file ZIP",
+    "orFromUrl": "atau dari URL",
+    "installFromUrl": "Instal dari URL",
+    "urlPlaceholder": "https://example.com/plugin.zip",
+    "zipOnly": "Hanya file ZIP yang dapat dijatuhkan sebagai file — seret folder untuk instalasi direktori",
+    "dropFailed": "Gagal membaca folder yang dijatuhkan",
+    "restartHint": "Beberapa plugin (mis. hook, monkey-patch) mungkin memerlukan restart aplikasi agar sepenuhnya aktif atau dihapus.",
+    "installing": "Menginstal...",
+    "installSuccess": "Plugin berhasil diinstal",
+    "installFailed": "Instalasi plugin gagal",
+    "uninstall": "Copot",
+    "uninstallConfirm": "Copot plugin \"{{name}}\"? Tindakan ini tidak dapat dibatalkan. Beberapa plugin mungkin memerlukan restart aplikasi agar sepenuhnya dihapus.",
+    "uninstalling": "Mencopot...",
+    "uninstallSuccess": "Plugin berhasil dicopot",
+    "uninstallFailed": "Pencopotan plugin gagal",
+    "statusLoaded": "Berjalan",
+    "statusUnloaded": "Tidak dimuat",
+    "type": "Tipe",
+    "version": "Versi",
+    "author": "Penulis",
+    "unknown": "Tidak diketahui",
+    "loadFailed": "Gagal memuat daftar plugin",
+    "confirmTitle": "Konfirmasi Pencopotan",
+    "officialTitle": "Plugin Resmi",
+    "officialDesc": "Instal plugin yang dipublikasikan dari CDN unduhan.",
+    "catalogRefresh": "Segarkan",
+    "catalogEmpty": "Tidak ada plugin resmi tersedia (katalog CDN mungkin kosong)",
+    "catalogLoadFailed": "Gagal memuat katalog plugin resmi",
+    "catalogInstall": "Instal",
+    "catalogReinstall": "Instal ulang",
+    "catalogUpgrade": "Pembaruan tersedia",
+    "catalogUpgradeBtn": "Perbarui",
+    "catalogInstalled": "Terinstal",
+    "catalogSha256": "SHA256"
   },
   "debug": {
     "title": "Debug",

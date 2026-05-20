@@ -847,6 +847,16 @@
     "pleaseSelectRepeatEndType": "Please select end condition",
     "pleaseInputRepeatUntil": "Please select end date",
     "pleaseInputRepeatCount": "Please enter run count",
+    "validation": {
+      "cronRequired": "Cron expression is required for recurring schedules.",
+      "runAtRequired": "Execution time is required for one-time schedules.",
+      "repeatUntilRequired": "Please select an end date when using \"End on date\".",
+      "repeatCountRequired": "Please provide a run count when using \"Limited count\".",
+      "repeatUntilAfterRunAt": "The end date must be later than the execution time. Please choose an end date after the execution time.",
+      "textRequired": "Message content is required when task type is text.",
+      "requestRequired": "Request content is required when task type is agent.",
+      "invalidCronExpression": "Invalid cron expression. Please use a 5-field cron format."
+    },
     "pleaseSelectTaskType": "Please select task type",
     "pleaseInputRequest": "Please input request content",
     "pleaseInputMessageContent": "Please enter message content",
@@ -986,6 +996,7 @@
     "filterThinkingTooltip": "Show model thinking/reasoning content to users (turn off to hide)",
     "streamingEnabled": "Streaming Output",
     "streamingEnabledDingtalkHint": "Only effective when message type is Card",
+    "streamingEnabledFeishuHint": "Requires enabling cardkit:card:write permission in the Feishu Open Platform permission management page",
     "ackMessage": "Acknowledgment Message",
     "ackMessageTooltip": "Send an instant reply when a message is received, before agent processing begins. Leave empty to disable.",
     "ackMessagePlaceholder": "⏳ Processing...",
@@ -1255,6 +1266,10 @@
     "modelConfigSaved": "Configuration saved for model {{name}}",
     "modelConfigSaveFailed": "Failed to save model configuration",
     "modelConfigLabel": "Model Config",
+    "maxTokensLabel": "Max Tokens",
+    "maxTokensHint": "Maximum output tokens per response",
+    "maxInputLengthLabel": "Max Context Length",
+    "maxInputLengthHint": "Model context window size, controls context compaction threshold (≥1000)",
     "protocol": "Protocol",
     "protocolHint": "Choose the provider API protocol for this configuration.",
     "selectProtocol": "Please select a protocol",
@@ -1804,8 +1819,10 @@
     "changelog": "Changelog",
     "docs": "Doc",
     "tutorial": "Tutorial",
+    "featureDemos": "Feature Demos",
     "faq": "FAQ",
     "github": "GitHub",
+    "resources": "Documentation",
     "updateAvailable": "Update Available"
   },
   "theme": {
@@ -2213,6 +2230,17 @@
     "author": "Author",
     "unknown": "Unknown",
     "loadFailed": "Failed to load plugin list",
-    "confirmTitle": "Confirm Uninstall"
+    "confirmTitle": "Confirm Uninstall",
+    "officialTitle": "Official Plugins",
+    "officialDesc": "Install published plugins from the download CDN.",
+    "catalogRefresh": "Refresh",
+    "catalogEmpty": "No official plugins available (CDN catalog may be empty)",
+    "catalogLoadFailed": "Failed to load official plugin catalog",
+    "catalogInstall": "Install",
+    "catalogReinstall": "Reinstall",
+    "catalogUpgrade": "Upgrade available",
+    "catalogUpgradeBtn": "Upgrade",
+    "catalogInstalled": "Installed",
+    "catalogSha256": "SHA256"
   }
 }
